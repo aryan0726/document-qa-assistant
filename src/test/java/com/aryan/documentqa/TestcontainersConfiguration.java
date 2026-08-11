@@ -2,17 +2,21 @@ package com.aryan.documentqa;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
-    @Bean
     @ServiceConnection
-    PostgreSQLContainer postgresContainer() {
-        return new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
-    }
+    static PostgreSQLContainer<?> postgresContainer =
+            new PostgreSQLContainer<>("postgres:16")
+                    .withDatabaseName("document_qa_test")
+                    .withUsername("postgres")
+                    .withPassword("postgres")
+                    .withEnv("TZ", "Asia/Kolkata")
+                    .withCommand("postgres", "-c", "timezone=Asia/Kolkata");
 
+    static {
+        postgresContainer.start();
+    }
 }
