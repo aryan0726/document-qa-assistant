@@ -66,6 +66,9 @@ public class Document {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "storage_path", length = 1000)
+    private String storagePath;
+
     protected Document() {
     }
 
@@ -142,6 +145,10 @@ public class Document {
         return updatedAt;
     }
 
+    public String getStoragePath() {
+        return storagePath;
+    }
+
     public void markReady() {
         this.status = DocumentStatus.READY;
         this.errorMessage = null;
@@ -150,5 +157,9 @@ public class Document {
     public void markFailed(String errorMessage) {
         this.status = DocumentStatus.FAILED;
         this.errorMessage = errorMessage;
+    }
+
+    public void setStoragePath(String storagePath) {
+        this.storagePath = storagePath;
     }
 }
