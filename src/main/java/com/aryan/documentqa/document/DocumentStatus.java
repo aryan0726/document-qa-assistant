@@ -1,4 +1,8 @@
 package com.aryan.documentqa.document;
 
-public class DocumentStatus {
+public enum DocumentStatus {
+
+    PROCESSING,
+    READY,
+    FAILED
 }
