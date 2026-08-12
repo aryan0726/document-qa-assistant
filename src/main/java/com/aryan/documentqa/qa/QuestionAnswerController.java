@@ -19,7 +19,9 @@ public class QuestionAnswerController {
             @RequestHeader("X-Tenant-Id") String tenantId,
             @RequestBody QuestionRequest request
     ) {
+
         return answerGenerationService.answer(
+                request.conversationId(),
                 tenantId,
                 request.question(),
                 5

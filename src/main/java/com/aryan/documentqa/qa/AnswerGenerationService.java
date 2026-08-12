@@ -1,27 +1,42 @@
 package com.aryan.documentqa.qa;
 
+import com.aryan.documentqa.conversation.Conversation;
+import com.aryan.documentqa.conversation.ConversationRepository;
+import com.aryan.documentqa.conversation.Message;
+import com.aryan.documentqa.conversation.MessageRepository;
+import com.aryan.documentqa.conversation.MessageRole;
 import com.aryan.documentqa.retrieval.DocumentRetrievalService;
 import com.aryan.documentqa.retrieval.RetrievedChunk;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class AnswerGenerationService {
 
     private final ChatClient chatClient;
     private final DocumentRetrievalService retrievalService;
+    private final ConversationRepository conversationRepository;
+    private final MessageRepository messageRepository;
 
     public AnswerGenerationService(
             ChatClient.Builder chatClientBuilder,
-            DocumentRetrievalService retrievalService
+            DocumentRetrievalService retrievalService,
+            ConversationRepository conversationRepository,
+            MessageRepository messageRepository
     ) {
         this.chatClient = chatClientBuilder.build();
         this.retrievalService = retrievalService;
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
     }
 
+    @Transactional
     public AnswerGenerationResponse answer(
+            UUID conversationId,
             String tenantId,
             String question,
             int limit
@@ -29,6 +44,43 @@ public class AnswerGenerationService {
 
         validateTenantId(tenantId);
         validateQuestion(question);
+
+        long startTime = System.currentTimeMillis();
+
+        Conversation conversation;
+
+        if (conversationId == null) {
+
+            String title = createConversationTitle(question);
+
+            conversation = new Conversation(
+                    tenantId,
+                    title
+            );
+
+            conversation = conversationRepository.save(conversation);
+
+        } else {
+
+            conversation = conversationRepository
+                    .findByIdAndTenantId(conversationId, tenantId)
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Conversation not found for this tenant"
+                            )
+                    );
+        }
+
+        Message userMessage = new Message(
+                conversation,
+                MessageRole.USER,
+                question
+        );
+
+        messageRepository.save(userMessage);
+
+        conversation.updateLastMessageAt();
+        conversationRepository.save(conversation);
 
         List<RetrievedChunk> chunks =
                 retrievalService.retrieve(
@@ -38,15 +90,37 @@ public class AnswerGenerationService {
                 );
 
         if (chunks.isEmpty()) {
+
+            String fallbackAnswer =
+                    "I couldn't find relevant information in the provided documents.";
+
+            Message assistantMessage = new Message(
+                    conversation,
+                    MessageRole.ASSISTANT,
+                    fallbackAnswer
+            );
+
+            assistantMessage.setLatencyMs(
+                    System.currentTimeMillis() - startTime
+            );
+
+            messageRepository.save(assistantMessage);
+
+            conversation.updateLastMessageAt();
+            conversationRepository.save(conversation);
+
             return new AnswerGenerationResponse(
-                    "I couldn't find relevant information in the provided documents.",
+                    fallbackAnswer,
                     List.of()
             );
         }
 
         String context = buildContext(chunks);
 
-        String prompt = buildPrompt(question, context);
+        String prompt = buildPrompt(
+                question,
+                context
+        );
 
         String answer = chatClient
                 .prompt()
@@ -60,13 +134,44 @@ public class AnswerGenerationService {
             );
         }
 
+        answer = answer.trim();
+
+        long latencyMs =
+                System.currentTimeMillis() - startTime;
+
+        Message assistantMessage = new Message(
+                conversation,
+                MessageRole.ASSISTANT,
+                answer
+        );
+
+        assistantMessage.setLatencyMs(latencyMs);
+
+        messageRepository.save(assistantMessage);
+
+        conversation.updateLastMessageAt();
+        conversationRepository.save(conversation);
+
         return new AnswerGenerationResponse(
-                answer.trim(),
+                answer,
                 chunks
         );
     }
 
-    private String buildContext(List<RetrievedChunk> chunks) {
+    private String createConversationTitle(String question) {
+
+        String title = question.trim();
+
+        if (title.length() <= 255) {
+            return title;
+        }
+
+        return title.substring(0, 252) + "...";
+    }
+
+    private String buildContext(
+            List<RetrievedChunk> chunks
+    ) {
 
         StringBuilder context = new StringBuilder();
 
@@ -121,7 +226,10 @@ public class AnswerGenerationService {
                 %s
 
                 ANSWER:
-                """.formatted(context, question);
+                """.formatted(
+                context,
+                question
+        );
     }
 
     private void validateTenantId(String tenantId) {
