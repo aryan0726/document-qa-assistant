@@ -25,18 +25,23 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
     @Query(
             value = """
                     SELECT
-                        id,
-                        document_id,
-                        tenant_id,
-                        chunk_index,
-                        content,
-                        page_number,
-                        token_count,
-                        1 - (embedding <=> CAST(:embedding AS vector)) AS similarity_score
-                    FROM document_chunks
-                    WHERE tenant_id = :tenantId
-                      AND embedding IS NOT NULL
-                    ORDER BY embedding <=> CAST(:embedding AS vector)
+                        dc.id,
+                        dc.document_id,
+                        dc.tenant_id,
+                        dc.chunk_index,
+                        dc.content,
+                        dc.page_number,
+                        dc.token_count,
+                        1 - (dc.embedding <=> CAST(:embedding AS vector)) AS similarity_score
+                    FROM document_chunks dc
+                    JOIN documents d
+                      ON d.id = dc.document_id
+                    WHERE dc.tenant_id = :tenantId
+                      AND d.tenant_id = :tenantId
+                      AND dc.embedding IS NOT NULL
+                      AND (:category IS NULL OR d.category = :category)
+                      AND 1 - (dc.embedding <=> CAST(:embedding AS vector)) >= :threshold
+                    ORDER BY dc.embedding <=> CAST(:embedding AS vector)
                     LIMIT :limit
                     """,
             nativeQuery = true
@@ -44,6 +49,8 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
     List<Object[]> findSimilarChunks(
             @Param("tenantId") String tenantId,
             @Param("embedding") String embedding,
+            @Param("category") String category,
+            @Param("threshold") double threshold,
             @Param("limit") int limit
     );
 }

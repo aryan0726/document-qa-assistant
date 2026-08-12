@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record QuestionRequest(
         UUID conversationId,
-        String question
+        String question,
+        String category
 ) {
 }

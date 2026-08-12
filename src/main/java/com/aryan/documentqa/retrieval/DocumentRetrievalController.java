@@ -24,11 +24,14 @@ public class DocumentRetrievalController {
     public List<RetrievedChunk> search(
             @RequestHeader("X-Tenant-Id") String tenantId,
             @RequestParam("query") String query,
+            @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "5") int limit
     ) {
+
         return retrievalService.retrieve(
                 tenantId,
                 query,
+                category,
                 limit
         );
     }

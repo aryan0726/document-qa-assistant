@@ -39,6 +39,7 @@ public class AnswerGenerationService {
             UUID conversationId,
             String tenantId,
             String question,
+            String category,
             int limit
     ) {
 
@@ -86,6 +87,7 @@ public class AnswerGenerationService {
                 retrievalService.retrieve(
                         tenantId,
                         question,
+                        category,
                         limit
                 );
 

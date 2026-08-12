@@ -24,6 +24,7 @@ public class QuestionAnswerController {
                 request.conversationId(),
                 tenantId,
                 request.question(),
+                request.category(),
                 5
         );
     }

@@ -2,6 +2,7 @@ package com.aryan.documentqa.retrieval;
 
 import com.aryan.documentqa.document.DocumentChunkRepository;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,6 +12,9 @@ public class DocumentRetrievalService {
 
     private final EmbeddingModel embeddingModel;
     private final DocumentChunkRepository documentChunkRepository;
+
+    @Value("${app.retrieval.similarity-threshold:0.70}")
+    private double similarityThreshold;
 
     public DocumentRetrievalService(
             EmbeddingModel embeddingModel,
@@ -23,11 +27,13 @@ public class DocumentRetrievalService {
     public List<RetrievedChunk> retrieve(
             String tenantId,
             String query,
+            String category,
             int limit
     ) {
 
         validateTenantId(tenantId);
         validateQuery(query);
+        validateCategory(category);
 
         if (limit < 1 || limit > 50) {
             throw new IllegalArgumentException(
@@ -35,12 +41,6 @@ public class DocumentRetrievalService {
             );
         }
 
-        /*
-         * Convert the user's question into a Gemini embedding.
-         *
-         * The embedding model returns a 768-dimensional vector
-         * for our configured Gemini embedding model.
-         */
         float[] queryEmbedding = embeddingModel.embed(query);
 
         if (queryEmbedding == null) {
@@ -62,6 +62,8 @@ public class DocumentRetrievalService {
                 documentChunkRepository.findSimilarChunks(
                         tenantId,
                         vector,
+                        category,
+                        similarityThreshold,
                         limit
                 );
 
@@ -132,6 +134,15 @@ public class DocumentRetrievalService {
         if (query.length() > 2000) {
             throw new IllegalArgumentException(
                     "Query must not exceed 2000 characters"
+            );
+        }
+    }
+
+    private void validateCategory(String category) {
+
+        if (category != null && category.length() > 100) {
+            throw new IllegalArgumentException(
+                    "Category must not exceed 100 characters"
             );
         }
     }
