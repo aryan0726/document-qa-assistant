@@ -1,43 +1,60 @@
 package com.aryan.documentqa.document;
 
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/documents")
 public class DocumentController {
 
-    private final DocumentUploadService documentUploadService;
+    private final DocumentManagementService documentManagementService;
 
     public DocumentController(
-            DocumentUploadService documentUploadService
+            DocumentManagementService documentManagementService
     ) {
-        this.documentUploadService = documentUploadService;
+        this.documentManagementService = documentManagementService;
     }
 
-    @PostMapping(
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<DocumentUploadResponse> uploadDocument(
+    @GetMapping
+    public List<DocumentResponse> listDocuments(
+            @RequestHeader("X-Tenant-Id") String tenantId
+    ) {
+
+        return documentManagementService
+                .listDocuments(tenantId)
+                .stream()
+                .map(DocumentResponse::from)
+                .toList();
+    }
+
+    @GetMapping("/{documentId}")
+    public DocumentResponse getDocument(
             @RequestHeader("X-Tenant-Id") String tenantId,
-            @RequestParam("title") String title,
-            @RequestParam(value = "category", required = false) String category,
-            @RequestPart("file") MultipartFile file
-    ) throws IOException {
+            @PathVariable UUID documentId
+    ) {
 
-        DocumentUploadResponse response =
-                documentUploadService.upload(
+        return DocumentResponse.from(
+                documentManagementService.getDocument(
                         tenantId,
-                        title,
-                        category,
-                        file
-                );
+                        documentId
+                )
+        );
+    }
 
-        return ResponseEntity.accepted().body(response);
+    @DeleteMapping("/{documentId}")
+    public ResponseEntity<Void> deleteDocument(
+            @RequestHeader("X-Tenant-Id") String tenantId,
+            @PathVariable UUID documentId
+    ) {
+
+        documentManagementService.deleteDocument(
+                tenantId,
+                documentId
+        );
+
+        return ResponseEntity.noContent().build();
     }
 }
