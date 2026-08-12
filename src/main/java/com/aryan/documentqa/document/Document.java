@@ -162,4 +162,12 @@ public class Document {
     public void setStoragePath(String storagePath) {
         this.storagePath = storagePath;
     }
+
+    public void setStatus(DocumentStatus status) {
+        this.status = status;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
 }

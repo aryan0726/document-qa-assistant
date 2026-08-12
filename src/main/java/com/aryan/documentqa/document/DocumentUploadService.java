@@ -7,19 +7,22 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
+import com.aryan.documentqa.ingestion.DocumentProcessingService;
 @Service
 public class DocumentUploadService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentProcessingService documentProcessingService;
     private final FileStorageService fileStorageService;
 
     public DocumentUploadService(
             DocumentRepository documentRepository,
-            FileStorageService fileStorageService
+            FileStorageService fileStorageService,
+            DocumentProcessingService documentProcessingService
     ) {
         this.documentRepository = documentRepository;
         this.fileStorageService = fileStorageService;
+        this.documentProcessingService = documentProcessingService;
     }
 
     public DocumentUploadResponse upload(
@@ -83,6 +86,10 @@ public class DocumentUploadService {
         savedDocument.setStoragePath(storagePath);
 
         savedDocument = documentRepository.save(savedDocument);
+
+        documentProcessingService.process(
+                savedDocument.getId()
+        );
 
         return new DocumentUploadResponse(
                 savedDocument.getId(),
