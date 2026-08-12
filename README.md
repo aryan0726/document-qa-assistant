@@ -1,608 +1,464 @@
-# Document Q&A Assistant
+# 📚 Document Q&A Assistant
 
-A multi-tenant backend service that ingests school documents and answers natural-language questions using Retrieval-Augmented Generation (RAG), with citations back to the source document and page.
+A **multi-tenant Document Question & Answer Assistant** built with **Spring Boot, Spring AI, Google Gemini, PostgreSQL, pgvector, and Docker**.
 
-> **Project status:** Foundation phase — Spring Boot, Spring AI, Gemini, PostgreSQL/pgvector dependencies, Flyway, Testcontainers, environment configuration, and Git/GitHub setup are complete. Core document ingestion and retrieval features are under development.
-
----
-
-## 1. Overview
-
-The Document Q&A Assistant is a backend service designed for organizations that need to answer questions from a collection of documents such as:
-
-- Fee policies
-- Transport rules
-- Exam circulars
-- HR policies
-- Admission procedures
-
-The system will ingest documents, extract and chunk their content, generate embeddings, store those embeddings in PostgreSQL with pgvector, and retrieve relevant chunks when a user asks a question.
-
-The final answer will be grounded in retrieved document content and will include citations to the source document and page.
+The system allows users to upload documents, automatically extract and chunk their content, generate vector embeddings, perform semantic retrieval, and ask natural-language questions. Answers are generated using a Retrieval-Augmented Generation (RAG) pipeline with relevant document chunks as context.
 
 ---
 
-## 2. Assignment Goals
+## 🚀 Features
 
-The system is being built to satisfy the following core requirements:
-
-- Document upload for PDF, DOCX, TXT, and Markdown files
-- Asynchronous document ingestion
-- Text extraction with page/section information preserved
-- Configurable chunking with overlap
-- Batched embedding generation
-- PostgreSQL + pgvector vector storage
-- Database-level metadata filtering
-- Similarity threshold and top-K retrieval
-- Grounded answers with source citations
-- Refusal when no retrieved chunk meets the configured threshold
-- Conversation memory
-- Multi-tenant data isolation
-- Document deletion
-- Streaming responses using Server-Sent Events
-- Testcontainers integration tests
-- Observability and health checks
+- 📄 Document upload and ingestion
+- 🔤 Text extraction from documents
+- ✂️ Intelligent document chunking
+- 🧠 Gemini embedding generation
+- 🔎 Semantic vector search using PostgreSQL + pgvector
+- 🤖 Retrieval-Augmented Generation (RAG)
+- 💬 Persistent conversations
+- 📨 Persistent conversation messages
+- 📂 Document management APIs
+- 🔐 Multi-tenant data isolation
+- ❌ Global exception handling
+- 🗄️ Database migrations with Flyway
+- 🐳 Dockerized application and PostgreSQL
+- 🧪 Integration testing with Testcontainers
+- ❤️ Health/monitoring endpoints through Spring Boot Actuator
 
 ---
 
-## 3. Technology Stack
-
-| Component | Technology |
-|---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 4.1.0 |
-| AI Framework | Spring AI 2.0.0 |
-| LLM Provider | Google Gemini |
-| Embeddings | Google Gemini |
-| Database | PostgreSQL |
-| Vector Store | pgvector |
-| Database Migrations | Flyway |
-| Testing | JUnit + Testcontainers |
-| Build Tool | Maven Wrapper |
-| Containerization | Docker / Docker Compose |
-| API | REST + Server-Sent Events |
-| Version Control | Git + GitHub |
-
-The assignment requires Java 21/25 LTS, Spring Boot 4.x, Spring AI 2.x, PostgreSQL + pgvector, migrations, and environment-based API credentials. The selected stack follows those constraints.
-
----
-
-## 4. Architecture
-
-### High-Level Architecture
+## 🏗️ Architecture
 
 ```text
                          ┌─────────────────────┐
-                         │      Client         │
-                         │  Swagger / REST UI  │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │    Spring Boot      │
                          │      REST API       │
                          └──────────┬──────────┘
                                     │
-                ┌───────────────────┴───────────────────┐
-                │                                       │
-                ▼                                       ▼
-        Document Upload                           Chat Request
-                │                                       │
-                ▼                                       ▼
-       Async Ingestion                           Query Embedding
-                │                                       │
-                ▼                                       ▼
-        Text Extraction                         pgvector Search
-                │                                       │
-                ▼                                       │
-            Chunking                                   │
-                │                                       │
-                ▼                                       │
-        Gemini Embeddings                               │
-                │                                       │
-                └──────────────► PostgreSQL ◄────────────┘
-                                      │
-                                      ▼
-                              Retrieved Context
-                                      │
-                                      ▼
-                                  Gemini
-                                      │
-                                      ▼
-                              Grounded Answer
-                                      │
-                                      ▼
-                                  Sources
+              ┌─────────────────────┼─────────────────────┐
+              │                     │                     │
+              ▼                     ▼                     ▼
+       Document APIs           Q&A APIs          Conversation APIs
+              │                     │                     │
+              ▼                     ▼                     ▼
+       Document Service       Retrieval Service     Message Persistence
+              │                     │
+              ▼                     ▼
+       Text Extraction          pgvector
+              │                     │
+              ▼                     ▼
+          Chunking             Similarity Search
+              │                     │
+              ▼                     │
+        Gemini Embeddings           │
+              │                     │
+              └──────────┬──────────┘
+                         ▼
+                  Relevant Context
+                         │
+                         ▼
+                   Google Gemini
+                         │
+                         ▼
+                      Answer
 
-## 5. Document Ingestion Flow
+🔄 RAG Pipeline
 
-The planned ingestion pipeline is:
-Upload Document
-      │
-      ▼
-Validate File
-      │
-      ▼
-Calculate SHA-256
-      │
-      ▼
-Create Document Record
-(status = PROCESSING)
-      │
-      ▼
-Asynchronous Processing
-      │
-      ▼
-Extract Text + Page Information
-      │
-      ▼
-Chunk Text
-      │
-      ▼
-Generate Embeddings in Batches
-      │
-      ▼
-Persist Chunks + Embeddings
-      │
-      ▼
-Update Document Status
-      │
-      ├── READY
-      │
-      └── FAILED
-
-The ingestion process will be asynchronous so that processing a large document does not block an HTTP request thread.
-
-## 6. Question / Retrieval Flow
-
-The planned query pipeline is:
+The question-answering flow works as follows:
 User Question
       │
       ▼
-Validate Tenant
+Generate Query Embedding
       │
       ▼
-Create Query Embedding
+Semantic Search in pgvector
       │
       ▼
-Vector Search in PostgreSQL
-      │
-      ├── Tenant filter
-      ├── Optional category filter
-      ├── Top-K
-      └── Similarity threshold
+Retrieve Relevant Document Chunks
       │
       ▼
-Relevant Chunks
-      │
-      ├── No qualifying chunks
-      │          │
-      │          ▼
-      │      Refusal Response
+Build Context
       │
       ▼
-Build Grounded Prompt
+Send Context + Question to Gemini
       │
       ▼
-Gemini
+Generate Answer
       │
       ▼
-Answer + Sources
+Persist Conversation + Messages
+      │
+      ▼
+Return Answer + Sources
 
-Retrieval filtering will be performed at the database/vector-search level rather than retrieving unrelated chunks and filtering them afterward in Java.
+🛠️ Tech Stack
+Technology	Purpose
+Java 21	Programming language
+Spring Boot 4.1.0	Backend framework
+Spring MVC	REST APIs
+Spring Data JPA	Database persistence
+Hibernate	ORM
+Spring AI 2.0.0	AI integration
+Google Gemini	LLM + embeddings
+PostgreSQL	Relational database
+pgvector	Vector similarity search
+Flyway	Database migrations
+Apache Tika	Document text extraction
+Apache PDFBox	PDF processing
+Docker	Containerization
+Testcontainers	Integration testing
+Maven	Build & dependency management
+Spring Boot Actuator	Application monitoring
 
 
-## 7. Multi-Tenancy
+📦 Project Structure
 
-Every request will carry a tenant identifier.
+src/
+├── main/
+│   ├── java/
+│   │   └── com/aryan/documentqa/
+│   │       │
+│   │       ├── common/
+│   │       │   ├── ApiErrorResponse.java
+│   │       │   ├── GlobalExceptionHandler.java
+│   │       │   └── ResourceNotFoundException.java
+│   │       │
+│   │       ├── conversation/
+│   │       │   ├── Conversation.java
+│   │       │   ├── ConversationController.java
+│   │       │   ├── ConversationRepository.java
+│   │       │   ├── ConversationResponse.java
+│   │       │   ├── Message.java
+│   │       │   ├── MessageRepository.java
+│   │       │   ├── MessageResponse.java
+│   │       │   └── MessageRole.java
+│   │       │
+│   │       ├── document/
+│   │       │   ├── Document.java
+│   │       │   ├── DocumentChunk.java
+│   │       │   ├── DocumentChunkRepository.java
+│   │       │   ├── DocumentController.java
+│   │       │   ├── DocumentExceptionHandler.java
+│   │       │   ├── DocumentManagementService.java
+│   │       │   ├── DocumentRepository.java
+│   │       │   ├── DocumentResponse.java
+│   │       │   ├── DocumentStatus.java
+│   │       │   ├── DocumentUploadResponse.java
+│   │       │   └── DocumentUploadService.java
+│   │       │
+│   │       ├── ingestion/
+│   │       │   ├── ChunkedText.java
+│   │       │   ├── DocumentChunker.java
+│   │       │   ├── DocumentEmbeddingService.java
+│   │       │   ├── DocumentProcessingService.java
+│   │       │   ├── DocumentTextExtractor.java
+│   │       │   ├── ExtractedDocument.java
+│   │       │   └── ExtractedPage.java
+│   │       │
+│   │       ├── qa/
+│   │       │   ├── AnswerGenerationResponse.java
+│   │       │   ├── AnswerGenerationService.java
+│   │       │   ├── QuestionAnswerController.java
+│   │       │   └── QuestionRequest.java
+│   │       │
+│   │       ├── retrieval/
+│   │       │   ├── DocumentRetrievalController.java
+│   │       │   ├── DocumentRetrievalService.java
+│   │       │   └── RetrievedChunk.java
+│   │       │
+│   │       └── storage/
+│   │           └── FileStorageService.java
+│   │
+│   └── resources/
+│       ├── application.properties
+│       └── db/
+│           └── migration/
+│               ├── V1__init_schema.sql
+│               └── V2__add_storage_path.sql
+│
+└── test/
+    └── java/
+        └── com/aryan/documentqa/
+            ├── DocumentQaAssistantApplicationTests.java
+            ├── TestcontainersConfiguration.java
+            ├── document/
+            │   └── DocumentManagementIntegrationTest.java
+            └── ingestion/
+                └── DocumentChunkerTest.java
 
-The initial API design will use:
-X-Tenant-Id
 
-Documents, document chunks, and conversations will be scoped by tenant.
+🔐 Multi-Tenant Architecture
 
-The retrieval layer must ensure that a tenant can never retrieve chunks belonging to another tenant.
+Every document and conversation is associated with a tenant.
 
-Tenant isolation is a core correctness requirement of the assignment and will be covered by integration tests.
+Requests use:
+X-Tenant-Id: school-006
 
-## 8. Database
+Tenant information is used when retrieving documents and conversations.
 
-The planned relational model contains:
+For example:school-006
+   │
+   └── Document A
+       └── Chunks
 
-documents
-document_chunks
-conversations
-messages
-message_sources
+school-007
+   │
+   └── Document B
+       └── Chunks
 
-Conceptually:
+A tenant cannot access another tenant's resources.
+
+For example:
+Document belongs to: school-006
+
+Request:
+X-Tenant-Id: school-007
+
+Result:
+404 Not Found
+This prevents cross-tenant data leakage.
+
+📡 API Endpoints
+Documents
+Upload document
+POST /api/v1/documents
+
+Headers:
+X-Tenant-Id: school-006
+
+Multipart fields:
+title
+category
+file
+
+Example:
+curl.exe -X POST "http://localhost:8080/api/v1/documents" `
+    -H "X-Tenant-Id: school-006" `
+    -F "title=School Rules" `
+    -F "category=policy" `
+    -F "file=@sample.txt"
+
+List documents
+GET /api/v1/documents
+
+Header:
+X-Tenant-Id: school-006
+
+Get document
+GET /api/v1/documents/{documentId}
+
+Header:
+X-Tenant-Id: school-006
+
+Delete document
+DELETE /api/v1/documents/{documentId}
+
+Header:
+X-Tenant-Id: school-006
+
+Semantic Retrieval
+GET /api/v1/retrieval/search
+
+Parameters:
+query
+limit
+
+Example:
+GET /api/v1/retrieval/search?query=What%20are%20the%20school%20library%20hours?&limit=5
+
+Header:
+
+X-Tenant-Id: school-006
+Question Answering
+POST /api/v1/qa/ask
+
+Headers:
+
+Content-Type: application/json
+X-Tenant-Id: school-006
+
+Request:
+
+{
+  "conversationId": null,
+  "question": "What are the school library hours?"
+}
+
+Example response:
+
+{
+  "answer": "The school library is open from 8 AM to 5 PM.",
+  "sources": [
+    {
+      "documentId": "70e0abbe-fd42-4c7e-ad6b-9c5ed870e4c3",
+      "tenantId": "school-006",
+      "chunkIndex": 0,
+      "pageNumber": 1,
+      "similarityScore": 0.77
+    }
+  ]
+}
+Conversations
+GET /api/v1/conversations
+
+Header:
+
+X-Tenant-Id: school-006
+
+Get messages:
+
+GET /api/v1/conversations/{conversationId}/messages
+
+Header:
+
+X-Tenant-Id: school-006
+🗄️ Database
+
+The application uses PostgreSQL with pgvector.
+
+Main tables:
+
 documents
     │
     └── document_chunks
-              │
-              └── vector embeddings
 
 conversations
     │
     └── messages
-              │
-              └── message_sources
-                         │
-                         └── document_chunks
+            │
+            └── message_sources
 
-Database schema changes will be managed using Flyway migrations.
+Document chunks store vector embeddings used for semantic retrieval.
 
-Hibernate schema auto-update will not be used.
+Embeddings currently use:
 
-## 9. Embeddings
+768 dimensions
 
-The current implementation uses Google Gemini embeddings.
+Database migrations are managed through Flyway.
 
-The embedding model, vector dimensions, batching strategy, and estimated cost will be documented here after the ingestion implementation and evaluation are finalized.
+V1__init_schema.sql
+V2__add_storage_path.sql
+🐳 Running with Docker
 
-Current Configuration
-Provider: Google Gemini
-Vector Store: PostgreSQL + pgvector
-Index: HNSW
-Distance: Cosine
-The exact embedding dimensions will remain aligned with the selected Gemini embedding model and the final database migration.
+Build and start the application:
 
-## 10. Chunking Strategy
+docker compose up -d --build
 
-The assignment requires the chunking strategy, chunk size, overlap, and reasoning to be documented.
+Check containers:
 
-The final values will be recorded here after implementation and evaluation.
+docker compose ps
 
-The decision will consider:
+Check application logs:
 
-Semantic coherence
-Retrieval accuracy
-Context size
-Page preservation
-Embedding cost
-Retrieval latency
+docker compose logs app --tail=50
 
-Example evaluation questions and observed retrieval behavior will be documented when the retrieval pipeline is implemented.
+The application runs on:
 
-## 11. Similarity Threshold
+http://localhost:8080
 
-A similarity threshold will be used to determine whether retrieved chunks provide sufficient evidence to answer a question.
+PostgreSQL runs inside the Docker Compose network.
 
-The final threshold will not be selected arbitrarily.
+⚙️ Configuration
 
-It will be evaluated against:
+The application uses environment variables for sensitive configuration.
 
-In-scope factual questions
-Multi-hop questions
-Follow-up questions
-Category-filtered questions
-Near-miss questions
-Out-of-scope questions
+Important configuration includes:
 
-The final README will document the chosen threshold and the evidence used to select it.
+GEMINI_API_KEY
 
-## 12. Grounding and Refusal
+Do not commit real API keys to Git.
 
-The system will instruct the LLM to answer only from the retrieved context.
+Use environment-specific configuration for local development and deployment.
 
-If no retrieved chunk satisfies the configured similarity threshold, the application will return a fixed refusal response instead of calling the LLM.
+🧪 Testing
 
-This prevents unsupported answers when the document corpus does not contain sufficient information.
+Run the complete Maven test suite:
 
-Every factual claim in a successful response should be traceable to one of the returned source chunks.
+.\mvnw.cmd clean test
 
-## 13. Conversation Memory
+The project contains:
 
-Conversation turns will be stored in PostgreSQL.
+Unit tests for document chunking
+Spring Boot application tests
+Document management integration tests
+PostgreSQL Testcontainers integration
 
-The planned chat flow supports follow-up questions such as:
+Current verified test result:
 
-User:
-What is the late fee for term 2?
+Tests run: 6
+Failures: 0
+Errors: 0
+Skipped: 0
 
-Assistant:
-...
+BUILD SUCCESS
+🔒 Security
 
-User:
-What about for class 9?
+The application implements tenant-scoped resource access.
 
-The system will include relevant recent conversation history while respecting a configurable token budget.
+Example:
 
-## 14. Streaming
+school-006 → document belongs to school-006
+school-007 → attempts to access document
+                    ↓
+                404 Not Found
 
-The application will provide a streaming chat endpoint using Server-Sent Events.
+Resource lookups use both:
 
-Planned behavior:
+documentId + tenantId
 
-POST /api/v1/chat/stream
+rather than relying only on the resource ID.
 
-        │
-        ▼
-   Retrieve Context
-        │
-        ▼
-   Call Gemini
-        │
-        ▼
- Stream Tokens
-        │
-        ▼
- Sources Event
+📊 Example RAG Result
 
-A disconnected client should cancel the upstream model request rather than leaving an orphaned request running.
+For a document containing:
 
-## 15. API Endpoints
+The school library is open from 8 AM to 5 PM.
+Students must carry their identification cards.
 
-The planned API includes:
+Question:
 
-Documents
-POST   /api/v1/documents
-GET    /api/v1/documents
-GET    /api/v1/documents/{id}
-DELETE /api/v1/documents/{id}
-Chat
-POST /api/v1/chat
-POST /api/v1/chat/stream
-Conversations
-GET /api/v1/conversations/{id}
-Health
-GET /actuator/health
+What are the school library hours?
 
-The exact request and response schemas will be documented as the controllers are implemented.
+The system retrieves the relevant document chunk and generates:
 
-## 16. Environment Variables
+The school library is open from 8 AM to 5 PM.
 
-Create a local .env or configure equivalent environment variables.
+The response also contains the retrieved source chunk and similarity score.
 
-Required variables:
-
-GEMINI_API_KEY=
-
-DB_URL=jdbc:postgresql://localhost:5432/document_qa
-DB_USERNAME=postgres
-DB_PASSWORD=postgres
-
-SERVER_PORT=8080
-
-See .env.example for the template.
-
-Security
-
-Never commit:
-
-.env
-API keys
-passwords
-credentials
-
-The Gemini API key is read from an environment variable.
-
-## 17. Local Development
-Prerequisites
-
-Install:
-
+🧰 Local Development
+Requirements
 Java 21
-Docker Desktop
-Git
+Maven Wrapper
+Docker
+Docker Compose
+PostgreSQL with pgvector support
+Google Gemini API key
+Run tests
+.\mvnw.cmd clean test
+Start application
+.\mvnw.cmd spring-boot:run
 
-Maven does not need to be installed globally because the project includes the Maven Wrapper.
+Or run everything with Docker:
 
-Verify:
+docker compose up -d --build
+📈 Future Improvements
 
-java -version
-docker --version
-docker compose version
+Potential future improvements include:
 
-Run Maven commands using:
+Authentication with JWT/OAuth2
+Role-based access control
+Streaming LLM responses
+Conversation title generation
+Pagination for document and conversation APIs
+Advanced document filtering
+Hybrid keyword + vector retrieval
+Reranking retrieved chunks
+Redis caching
+Rate limiting
+Observability with metrics and tracing
+Cloud deployment
+Frontend application
 
-.\mvnw.cmd
-## 18. Running Tests
+👨‍💻 Author
 
-Run the test suite with:
+Aryan Raj
 
-.\mvnw.cmd clean test "-Duser.timezone=Asia/Kolkata"
-
-Integration tests use Testcontainers and a real PostgreSQL environment rather than H2.
-
-Tests must also be designed so that the suite can run without requiring a real Gemini API key.
-
-## 19. Project Structure
-document-qa-assistant/
-│
-├── .env.example
-├── .gitignore
-├── .gitattributes
-├── pom.xml
-├── mvnw
-├── mvnw.cmd
-│
-├── .mvn/
-│
-└── src/
-    ├── main/
-    │   ├── java/
-    │   │   └── com/aryan/documentqa/
-    │   │
-    │   └── resources/
-    │       └── application.properties
-    │
-    └── test/
-        └── java/
-            └── com/aryan/documentqa/
-
-The package structure will evolve as the domain, controller, service, repository, ingestion, retrieval, and infrastructure layers are implemented.
-
-## 20. Testing Strategy
-
-The project will include:
-
-Unit Tests
-
-Tests for:
-
-Chunking boundaries
-Empty files
-Single-word documents
-Documents larger than one chunk
-Validation logic
-Refusal logic
-Integration Tests
-
-Using Testcontainers with real PostgreSQL + pgvector.
-
-Important scenarios include:
-
-Document persistence
-Vector retrieval
-Tenant isolation
-Category filtering
-Document deletion
-Refusal when no chunk meets the threshold
-
-The model provider will be mocked or stubbed in tests so the test suite does not require an API key.
-
-## 21. Observability
-
-The application will provide:
-
-Correlation/request IDs
-Retrieval latency metrics
-Model latency metrics
-Token counts
-Estimated model cost
-Database health
-Model-provider health
-
-Sensitive information, PII, API keys, and full document contents must not appear in logs.
-
-## 22. Performance Targets
-
-The implementation will target the assignment's stated requirements:
-
-Retrieval under 500 ms for a corpus of approximately 200 documents
-First streamed token under 3 seconds
-50-page document ingestion without blocking an HTTP request thread
-
-Actual measurements will be documented after implementation and testing.
-
-## 23. Known Limitations
-
-This section will be updated honestly as implementation progresses.
-
-Current limitations:
-
-Core document ingestion pipeline is not implemented yet.
-Retrieval and chat functionality are not implemented yet.
-Streaming is not implemented yet.
-Production-grade resilience is not implemented yet.
-Threshold evaluation has not yet been performed.
-Final embedding cost analysis has not yet been performed.
-
-## 24. Development Roadmap
-Phase 1 — Foundation
- Spring Boot project
- Java 21
- Spring AI
- Gemini configuration
- PostgreSQL dependencies
- pgvector dependency
- Flyway
- Testcontainers
- Environment-based secrets
- Git repository
- GitHub repository
-Phase 2 — Database
- Docker Compose with PostgreSQL + pgvector
- Flyway migrations
- Document entity
- Document chunk entity
- Conversation entity
- Message entity
- Message source entity
- Vector index
-Phase 3 — Document Ingestion
- Multipart upload
- File validation
- SHA-256 idempotency
- PDF extraction
- DOCX extraction
- TXT/Markdown extraction
- Chunking
- Batched embeddings
- Async processing
- Status transitions
-Phase 4 — Retrieval & Chat
- Query embeddings
- Tenant filtering
- Category filtering
- Top-K retrieval
- Similarity threshold
- Grounded prompt
- Refusal path
- Source citations
-Phase 5 — Conversation & Streaming
- Conversation persistence
- Token-budgeted history
- SSE streaming
- Client disconnect cancellation
-Phase 6 — Reliability & Observability
- Correlation IDs
- Metrics
- Retry
- Timeout
- Circuit breaker
- Health checks
- Clean error responses
-Phase 7 — Testing & Evaluation
- Unit tests
- Integration tests
- Tenant isolation tests
- Retrieval evaluation
- Refusal evaluation
- Coverage target
- Performance measurements
-Phase 8 — Submission
- Final README
- Clean-clone verification
- 5-minute demo
- Git history review
- Security review
- Final cleanup
-## 25. Design Decisions
-
-Important implementation decisions will be recorded here as the project evolves.
-
-Each decision should include:
-
-What was chosen
-Why it was chosen
-Alternatives considered
-Evidence or measurements when applicable
-
-This is especially important for:
-
-Chunk size and overlap
-Embedding model
-Similarity threshold
-Retrieval K
-Conversation history limits
-Async ingestion strategy
-Database indexing
-## 26. Assignment Reference
-
-This project is implemented according to the provided Document Q&A Assistant (RAG) Engineering Assignment.
-
-The priority is correctness of:
-
-Grounded answers
-Refusal behavior
-Tenant isolation
-Database-level retrieval filtering
-Real-world reliability
-
-Stretch goals will only be implemented after the core requirements are stable and tested.
-
-## 27. License
-
-This project was created as an engineering assignment.
+B.Tech Computer Science & Engineering
