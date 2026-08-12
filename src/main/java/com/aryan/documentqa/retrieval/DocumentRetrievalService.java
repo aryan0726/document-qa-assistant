@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class DocumentRetrievalService {
@@ -75,18 +76,19 @@ public class DocumentRetrievalService {
     private RetrievedChunk mapToRetrievedChunk(Object[] row) {
 
         return new RetrievedChunk(
-                (java.util.UUID) row[0],
-                (java.util.UUID) row[1],
-                (String) row[2],
-                ((Number) row[3]).intValue(),
-                (String) row[4],
-                row[5] == null
-                        ? null
-                        : ((Number) row[5]).intValue(),
+                (UUID) row[0],                         // id
+                (UUID) row[1],                         // documentId
+                (String) row[2],                       // tenantId
+                (String) row[3],                       // documentTitle
+                ((Number) row[4]).intValue(),          // chunkIndex
+                (String) row[5],                       // content
                 row[6] == null
                         ? null
-                        : ((Number) row[6]).intValue(),
-                ((Number) row[7]).doubleValue()
+                        : ((Number) row[6]).intValue(), // pageNumber
+                row[7] == null
+                        ? null
+                        : ((Number) row[7]).intValue(), // tokenCount
+                ((Number) row[8]).doubleValue()        // similarityScore
         );
     }
 

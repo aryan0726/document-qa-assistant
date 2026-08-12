@@ -123,15 +123,20 @@ class DocumentCategoryFilteringIntegrationTest {
         );
 
         assertEquals(
+                "School Policy",
+                result[3]
+        );
+
+        assertEquals(
                 "School policy information",
-                result[4]
+                result[5]
         );
 
         assertTrue(
                 results.stream()
                         .allMatch(row ->
                                 "School policy information"
-                                        .equals(row[4])
+                                        .equals(row[5])
                         )
         );
     }

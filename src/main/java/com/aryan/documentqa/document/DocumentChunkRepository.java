@@ -7,7 +7,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.UUID;
 
-public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UUID> {
+public interface DocumentChunkRepository
+        extends JpaRepository<DocumentChunk, UUID> {
 
     List<DocumentChunk> findAllByDocumentIdOrderByChunkIndexAsc(
             UUID documentId
@@ -28,6 +29,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
                         dc.id,
                         dc.document_id,
                         dc.tenant_id,
+                        d.title,
                         dc.chunk_index,
                         dc.content,
                         dc.page_number,
